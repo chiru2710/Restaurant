@@ -12,29 +12,41 @@ load_dotenv()
 
 app = FastAPI()
 
-# ✅ ENABLE CORS (VERY IMPORTANT FOR VITE REACT)
+# ✅ ENABLE CORS (VERY IMPORTANT FOR VERCEL FRONTEND)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL")],
+    allow_origins=[os.getenv("FRONTEND_URL", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Database Connection
-try:
-    db = mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
-        port=int(os.getenv("DB_PORT"))
-    )
+# =========================
+# DATABASE CONNECTION (SAFE FOR RENDER)
+# =========================
+
+def get_db_connection():
+    try:
+        conn = mysql.connector.connect(
+            host=os.getenv("DB_HOST"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME"),
+            port=int(os.getenv("DB_PORT", 3306))
+        )
+        return conn
+    except Exception as e:
+        print("❌ MySQL Connection Error:", e)
+        return None
+
+db = get_db_connection()
+cursor = None
+
+if db:
     cursor = db.cursor(dictionary=True)
     print("✅ Connected to MySQL Successfully!")
-except Exception as e:
-    print("❌ MySQL Connection Error:", e)
-    raise Exception("Database Connection Failed")
+else:
+    print("⚠️ MySQL not connected at startup (Render will retry on requests).")
 
 # =========================
 # Pydantic Models
@@ -63,13 +75,19 @@ class OrderRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "Backend is running"}
+    return {"message": "Backend is running on Render 🚀"}
 
 # -------------------------
 # REGISTER USER
 # -------------------------
 @app.post("/register")
 def register(user: RegisterRequest):
+    global db, cursor
+
+    if not db:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
     hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
 
     sql = """
@@ -84,7 +102,7 @@ def register(user: RegisterRequest):
                 user.name,
                 user.phone,
                 user.email,
-                hashed.decode(),  # Store as string in MySQL
+                hashed.decode(),
                 user.address,
             ),
         )
@@ -99,6 +117,12 @@ def register(user: RegisterRequest):
 # -------------------------
 @app.post("/login")
 def login(user: LoginRequest):
+    global db, cursor
+
+    if not db:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
     cursor.execute(
         """
         SELECT id, name, phone, email, address, password 
@@ -131,6 +155,12 @@ def login(user: LoginRequest):
 # -------------------------
 @app.post("/orders")
 def create_order(order: OrderRequest):
+    global db, cursor
+
+    if not db:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
     sql = """
     INSERT INTO orders (user_id, items, total_price, payment_mode)
     VALUES (%s, %s, %s, %s)
@@ -141,7 +171,7 @@ def create_order(order: OrderRequest):
             sql,
             (
                 order.user_id,
-                json.dumps(order.items),  # Store as proper JSON
+                json.dumps(order.items),
                 order.total_price,
                 order.payment_mode,
             ),
@@ -157,6 +187,12 @@ def create_order(order: OrderRequest):
 # -------------------------
 @app.get("/orders/{user_id}")
 def get_orders(user_id: int):
+    global db, cursor
+
+    if not db:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
     cursor.execute(
         """
         SELECT id, total_price, payment_mode, order_date 
