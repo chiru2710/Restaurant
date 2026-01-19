@@ -5,6 +5,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const BACKEND_URL = "https://restaurant-3-q6kf.onrender.com";
+
   // Auto-fetch location when page loads
   useEffect(() => {
     getLocation();
@@ -54,30 +56,41 @@ export default function Register() {
     e.preventDefault();
 
     const data = {
-      name: e.target.name.value,
-      phone: e.target.phone.value,
-      email: e.target.email.value,
+      name: e.target.name.value.trim(),
+      phone: e.target.phone.value.trim(),
+      email: e.target.email.value.trim(),
       password: e.target.password.value,
-      address: address
+      address: address.trim(),
     };
 
-    if (!data.address || data.address.includes("Fetching")) {
+    if (
+      !data.address ||
+      data.address.includes("Fetching") ||
+      data.address.includes("Failed") ||
+      data.address.includes("permission")
+    ) {
       alert("Please fetch or enter your address before submitting.");
       return;
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/register", {
+      const res = await fetch(`${BACKEND_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       });
 
       const result = await res.json();
+
+      if (!res.ok) {
+        alert(result.detail || "Registration failed");
+        return;
+      }
+
       alert(result.message);
       window.location.href = "/login";
     } catch (err) {
-      alert("Registration failed. Check backend server.");
+      alert("Backend not reachable. Check Render deployment.");
     }
   };
 
@@ -124,7 +137,9 @@ export default function Register() {
           rows={3}
         />
 
-        {error && <p style={{ color: "red", fontSize: "0.9rem" }}>{error}</p>}
+        {error && (
+          <p style={{ color: "red", fontSize: "0.9rem" }}>{error}</p>
+        )}
 
         <button
           type="button"

@@ -12,46 +12,42 @@ load_dotenv()
 
 app = FastAPI()
 
-# ✅ ENABLE CORS (VERY IMPORTANT FOR VERCEL FRONTEND)
+# ✅ CORS (VERY IMPORTANT for Vercel)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("https://restaurant-blond-rho.vercel.app/", "*")],
+    allow_origins=[
+        "https://restaurant-blond-rho.vercel.app"  # Your Vercel frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Handle preflight requests
+@app.options("/{full_path:path}")
+def options_handler():
+    return {"message": "OK"}
+
 # =========================
-# DATABASE CONNECTION (SAFE FOR RENDER)
+# DATABASE CONNECTION
 # =========================
-
-def get_db_connection():
-    try:
-        conn = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("DB_NAME"),
-            port=int(os.getenv("DB_PORT", 3306))
-        )
-        return conn
-    except Exception as e:
-        print("❌ MySQL Connection Error:", e)
-        return None
-
-db = get_db_connection()
-cursor = None
-
-if db:
+try:
+    db = mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
+        port=int(os.getenv("DB_PORT"))
+    )
     cursor = db.cursor(dictionary=True)
     print("✅ Connected to MySQL Successfully!")
-else:
-    print("⚠️ MySQL not connected at startup (Render will retry on requests).")
+except Exception as e:
+    print("❌ MySQL Connection Error:", e)
+    raise Exception("Database Connection Failed")
 
 # =========================
-# Pydantic Models
+# MODELS
 # =========================
-
 class RegisterRequest(BaseModel):
     name: str
     phone: str
@@ -72,22 +68,15 @@ class OrderRequest(BaseModel):
 # =========================
 # ROUTES
 # =========================
-
 @app.get("/")
 def home():
     return {"message": "Backend is running on Render 🚀"}
 
 # -------------------------
-# REGISTER USER
+# REGISTER
 # -------------------------
 @app.post("/register")
 def register(user: RegisterRequest):
-    global db, cursor
-
-    if not db:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-
     hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
 
     sql = """
@@ -108,21 +97,14 @@ def register(user: RegisterRequest):
         )
         db.commit()
         return {"message": "Registered successfully"}
-
     except mysql.connector.IntegrityError:
         raise HTTPException(status_code=400, detail="Email already exists")
 
 # -------------------------
-# LOGIN USER
+# LOGIN
 # -------------------------
 @app.post("/login")
 def login(user: LoginRequest):
-    global db, cursor
-
-    if not db:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-
     cursor.execute(
         """
         SELECT id, name, phone, email, address, password 
@@ -141,7 +123,6 @@ def login(user: LoginRequest):
     if not bcrypt.checkpw(user.password.encode(), stored_hash.encode()):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # ✅ Return full user details (needed for Profile.jsx)
     return {
         "id": result["id"],
         "name": result["name"],
@@ -151,16 +132,10 @@ def login(user: LoginRequest):
     }
 
 # -------------------------
-# SAVE ORDER
+# CREATE ORDER
 # -------------------------
 @app.post("/orders")
 def create_order(order: OrderRequest):
-    global db, cursor
-
-    if not db:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-
     sql = """
     INSERT INTO orders (user_id, items, total_price, payment_mode)
     VALUES (%s, %s, %s, %s)
@@ -178,21 +153,14 @@ def create_order(order: OrderRequest):
         )
         db.commit()
         return {"message": "Order saved successfully"}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # -------------------------
-# GET ORDER HISTORY (FOR PROFILE PAGE)
+# GET ORDER HISTORY
 # -------------------------
 @app.get("/orders/{user_id}")
 def get_orders(user_id: int):
-    global db, cursor
-
-    if not db:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-
     cursor.execute(
         """
         SELECT id, total_price, payment_mode, order_date 

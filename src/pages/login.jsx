@@ -1,8 +1,4 @@
-import { useNavigate } from "react-router-dom";
-
 export default function Login() {
-  const navigate = useNavigate();
-
   const submit = async (e) => {
     e.preventDefault();
 
@@ -11,23 +7,20 @@ export default function Login() {
       password: e.target.password.value,
     };
 
-    const res = await fetch("http://127.0.0.1:8000/login", {
+    const res = await fetch("https://restaurant-3-q6kf.onrender.com/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
 
-    if (!res.ok) {
-      alert("Invalid credentials");
-      return;
-    }
-
     const result = await res.json();
 
-    // ✅ Store full user object in localStorage
-    localStorage.setItem("user", JSON.stringify(result));
-
-    navigate("/profile");
+    if (res.status !== 200) {
+      alert("Invalid credentials");
+    } else {
+      localStorage.setItem("user", JSON.stringify(result));
+      window.location.href = "/profile";
+    }
   };
 
   return (

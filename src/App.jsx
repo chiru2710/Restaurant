@@ -13,20 +13,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={<Home cart={cart} setCart={setCart} />}
-        />
-
+        <Route path="/" element={<Home cart={cart} setCart={setCart} />} />
         <Route path="/login" element={<Login />} />
-
         <Route path="/register" element={<Register />} />
-
-        <Route
-          path="/cart"
-          element={<Cart cart={cart} setCart={setCart} />}
-        />
-
+        <Route path="/cart" element={<Cart cart={cart} setCart={setCart} />} />
         <Route path="/profile" element={<Profile />} />
       </Routes>
     </BrowserRouter>
