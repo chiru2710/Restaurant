@@ -4,4 +4,4 @@ mysql-connector-python
 bcrypt
 pydantic
 python-dotenv
-gunicorn
+
